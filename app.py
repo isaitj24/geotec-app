@@ -670,6 +670,9 @@ def main():
                 # Mostrar resultados
                 display_results(data.iloc[0], analysis)
                 
+                with st.expander("Respuesta completa de GPT-4 (debug)", expanded=True):
+                    st.markdown(analysis)
+
                 # Generar PDF
                 sections = parse_response(analysis)
                 pdf_path = generate_pdf_report(data.iloc[0], sections)
