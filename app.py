@@ -438,11 +438,15 @@ def generate_technical_prompt(data: pd.Series, additional_info: str, normatives:
 
     4. **Recomendación de Estabilización:**
        - Realiza un análisis exhaustivo considerando:
-         * Métodos físicos (compactación, inclusión de geosintéticos)
-         * Métodos químicos (cal, cemento, polímeros)
-         * Métodos innovadores (biocementación, nanotecnología)
+         * Métodos físicos (compactación, inclusión de geosintéticos, etc)
+         * Métodos químicos (cal, cemento, polímeros, etc)
+         * Métodos innovadores (biocementación, nanotecnología, etc)
        - Selecciona UN único método óptimo basado en los datos disponibles
-       - El método recomendado debe ser SUPER ESPECÍFICO (no genérico)
+         * Compatibilidad exacta con el tipo de suelo
+         * Comportamiento con el nivel freático específico
+         * Capacidad para la presión de carga indicada
+         * Potencial para alcanzar la resistencia deseada
+       - El método recomendado debe ser SUPER ESPECÍFICO, EXPLÍCITO Y PRECISO (no genérico)
        - Considera que algunos métodos pueden no ser evaluables por falta de datos
 
     5. **Justificación Técnica Rigurosa:**
@@ -451,16 +455,16 @@ def generate_technical_prompt(data: pd.Series, additional_info: str, normatives:
        - Describe el proceso constructivo paso a paso
        - Presenta resultados esperados cuantificables
        - Cita normativas aplicables (ASTM, AASHTO, ISO, etc) con números exactos
-       - Referencia artículos técnicos que respalden la recomendación
+       - Referencia artículos indexados técnicos citados que respalden la recomendación 
        - Compara con otros métodos descartados y explica por qué no son óptimos
        - Indica cualquier limitación en el análisis debido a falta de datos
 
     6. **Aplicaciones Recomendadas:**
        - Proporciona aplicaciones específicas basadas en los datos disponibles con:
-         * Tipo de proyecto exacto (ej: "Cimentación para edificio de 5 pisos")
+         * Tipo de proyecto exacto y real
          * Configuración recomendada
          * Ejemplos reales documentados (si existen)
-         * Justificación técnica para cada aplicación
+         * Justificación técnica para cada aplicación en base a articulos buscados
        - Indica si las recomendaciones podrían refinarse con datos adicionales
 
     ### Formato de Respuesta Estricto:
@@ -474,7 +478,7 @@ def generate_technical_prompt(data: pd.Series, additional_info: str, normatives:
     [Lista de problemas específicos para este suelo y posibles riesgos no evaluables]
 
     **Recomendación Óptima:**
-    [Método específico recomendado con consideración de datos faltantes]
+    [Método super específico recomendado con consideración de datos faltantes]
 
     **Justificación Técnica:**
     [Explicación detallada con fundamentos técnicos, normativas y referencias]
@@ -501,16 +505,16 @@ def query_ai(prompt: str) -> str:
                     "role": "system",
                     "content": (
                         "Eres un ingeniero geotécnico senior con 30 años de experiencia en estabilización de suelos. "
-                        "Realiza análisis técnicos exhaustivos basados en evidencia científica y normativa. "
+                        "Realiza análisis técnicos exhaustivos basados en evidencia científica de artículos y normativas. "
                         "Sigue estrictamente estos requisitos:\n"
                         "1. Evalúa primero la coherencia de los parámetros ingresados\n"
                         "2. Clasifica el suelo con precisión según los estándares con los datos disponibles\n"
                         "3. Identifica problemas específicos basados en los datos proporcionados\n"
-                        "4. Recomienda UN único método ESPECÍFICO después de analizar todas las opciones\n"
+                        "4. Recomienda UN único método ESPECÍFICO, EXPLÍCITO Y PRECISO después de analizar todas las opciones\n"
                         "5. Justifica con normativas exactas (ASTM, AASHTO, ISO) y artículos científicos indexados\n"
-                        "6. Propone aplicaciones específicas con ejemplos reales cuando sea posible\n"
+                        "6. Propone aplicaciones específicas con ejemplos reales en base a articulos buscados cuando sea posible\n"
                         "7. Indica claramente cualquier limitación debido a datos faltantes\n"
-                        "Sé extremadamente preciso y técnico en todas las explicaciones."
+                        "Sé extremadamente específico, preciso y técnico en todas las explicaciones."
                     )
                 },
                 {"role": "user", "content": prompt}
