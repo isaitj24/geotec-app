@@ -41,10 +41,10 @@ ARTICLES_DIR = "articulos"
 
 # Tipos de suelos completos según USCS
 SOIL_TYPES = [
-    "Arcilla (CH)", "Arcilla limosa (CL)", "Arcilla orgánica (OH)",
-    "Limo (ML)", "Limo orgánico (OL)", "Arena (SP)", "Arena limosa (SM)",
-    "Arena arcillosa (SC)", "Grava (GP)", "Grava limosa (GM)", 
-    "Grava arcillosa (GC)", "Suelo orgánico (Pt)", "Turba (Pt)",
+    "Arcilla", "Arcilla limosa", "Arcilla orgánica",
+    "Limo", "Limo orgánica", "Arena", "Arena limosa",
+    "Arena arcillosa", "Grava", "Grava limosa", 
+    "Grava arcillosa", "Suelo orgánico", "Turba",
     "Loess", "Laterita", "Bentonita", "Margas", "Arcillas expansivas",
     "Suelos colapsables", "Suelos residuales", "Suelos aluviales"
 ]
@@ -143,13 +143,6 @@ def validate_soil_parameters(data: pd.Series) -> Optional[str]:
     """Valida la coherencia de los parámetros del suelo"""
     errors = []
     
-    # Validación de límites de Atterberg
-    if data['Límite líquido (LL)'] < data['Límite plástico (LP)']:
-        errors.append("El límite líquido (LL) no puede ser menor que el límite plástico (LP)")
-    
-    if data['Índice de plasticidad (IP)'] != (data['Límite líquido (LL)'] - data['Límite plástico (LP)']):
-        errors.append("El índice de plasticidad (IP) debe ser igual a LL - LP")
-    
     # Validación de niveles freáticos
     if data['Nivel freático (m)'] < 0:
         errors.append("El nivel freático no puede ser negativo")
@@ -158,25 +151,36 @@ def validate_soil_parameters(data: pd.Series) -> Optional[str]:
     if data['Presión de carga (kPa)'] < 0:
         errors.append("La presión de carga no puede ser negativa")
     
+    # Validación de límites de Atterberg solo si se proporcionaron ambos
+    if 'Límite líquido (LL)' in data and 'Límite plástico (LP)' in data:
+        if data['Límite líquido (LL)'] < data['Límite plástico (LP)']:
+            errors.append("El límite líquido (LL) no puede ser menor que el límite plástico (LP)")
+    
+    # Validación de granulometría solo si se proporcionó
+    if all(key in data for key in ['Grava (%)', 'Arena (%)', 'Limo (%)', 'Arcilla (%)']):
+        if data['Grava (%)'] + data['Arena (%)'] + data['Limo (%)'] + data['Arcilla (%)'] != 100:
+            errors.append("La suma de los porcentajes de granulometría debe ser 100%")
+    
     if errors:
         return "\n".join(f"- {error}" for error in errors)
     return None
 
 def data_input_interface() -> Tuple[Optional[pd.DataFrame], str]:
-    """Interfaz de entrada de datos mejorada"""
+    """Interfaz de entrada de datos con parámetros opcionales"""
     with st.form("soil_data_form"):
         st.header("Datos del Suelo y Proyecto")
         
         col1, col2 = st.columns(2)
         
         with col1:
+            # Parámetros obligatorios
             soil_type = st.selectbox(
-                "Tipo de suelo",
+                "Tipo de suelo*",
                 SOIL_TYPES,
                 help="Seleccione según clasificación USCS"
             )
             water_level = st.number_input(
-                "Nivel freático (metros)", 
+                "Nivel freático (metros)*", 
                 min_value=0.0,
                 value=1.5,
                 step=0.1,
@@ -184,8 +188,9 @@ def data_input_interface() -> Tuple[Optional[pd.DataFrame], str]:
             )
             
         with col2:
+            # Parámetros obligatorios
             load_pressure = st.number_input(
-                "Presión de carga (kPa)", 
+                "Presión de carga (kPa)*", 
                 min_value=0,
                 value=150,
                 step=10
@@ -196,14 +201,76 @@ def data_input_interface() -> Tuple[Optional[pd.DataFrame], str]:
                 value=200
             )
         
-        st.subheader("Propiedades del Suelo")
-        ll_col, lp_col, ip_col = st.columns(3)
-        with ll_col:
-            ll = st.number_input("Límite líquido (LL)", min_value=0, value=30)
-        with lp_col:
-            lp = st.number_input("Límite plástico (LP)", min_value=0, value=15)
-        with ip_col:
-            ip = st.number_input("Índice plasticidad (IP)", min_value=0, value=15)
+        # Sección expandible para parámetros opcionales
+        with st.expander("Parámetros adicionales (opcionales)", expanded=False):
+            st.subheader("Propiedades del Suelo")
+            
+            # Granulometría
+            st.markdown("**Granulometría (%):**")
+            gravel_col, sand_col, silt_col, clay_col = st.columns(4)
+            with gravel_col:
+                gravel = st.number_input("Grava (%)", min_value=0, max_value=100, value=0)
+            with sand_col:
+                sand = st.number_input("Arena (%)", min_value=0, max_value=100, value=0)
+            with silt_col:
+                silt = st.number_input("Limo (%)", min_value=0, max_value=100, value=0)
+            with clay_col:
+                clay = st.number_input("Arcilla (%)", min_value=0, max_value=100, value=0)
+            
+            # Límites de Atterberg
+            st.markdown("**Límites de Atterberg:**")
+            ll_col, lp_col = st.columns(2)
+            with ll_col:
+                ll = st.number_input("Límite líquido (LL)", min_value=0, value=0)
+            with lp_col:
+                lp = st.number_input("Límite plástico (LP)", min_value=0, value=0)
+            
+            # IP se calcula automáticamente si se proporcionan LL y LP
+            if ll > 0 and lp > 0:
+                ip = ll - lp
+                st.markdown(f"**Índice de plasticidad (IP):** {ip} (calculado automáticamente como LL - LP)")
+            else:
+                ip = None
+            
+            # Parámetros adicionales
+            st.subheader("Otras Propiedades")
+            moisture_col, ph_col = st.columns(2)
+            with moisture_col:
+                moisture_content = st.number_input(
+                    "Contenido de humedad natural (%)",
+                    min_value=0.0,
+                    max_value=100.0,
+                    value=0.0,
+                    step=0.5,
+                    format="%.1f"
+                )
+            with ph_col:
+                ph_value = st.number_input(
+                    "pH del suelo",
+                    min_value=0.0,
+                    max_value=14.0,
+                    value=0.0,
+                    step=0.1,
+                    format="%.1f"
+                )
+            
+            cbr_col, swelling_col = st.columns(2)
+            with cbr_col:
+                cbr = st.number_input(
+                    "CBR (%)",
+                    min_value=0,
+                    max_value=100,
+                    value=0,
+                    help="Valor de California Bearing Ratio"
+                )
+            with swelling_col:
+                swelling = st.number_input(
+                    "Potencial de hinchamiento (%)",
+                    min_value=0.0,
+                    value=0.0,
+                    step=0.5,
+                    format="%.1f"
+                )
         
         additional_info = st.text_area(
             "Información adicional del proyecto:",
@@ -212,15 +279,38 @@ def data_input_interface() -> Tuple[Optional[pd.DataFrame], str]:
         )
         
         if st.form_submit_button("Analizar y Recomendar"):
+            # Construir diccionario de datos solo con valores proporcionados
             data = {
                 "Tipo de suelo": soil_type,
                 "Nivel freático (m)": water_level,
                 "Presión de carga (kPa)": load_pressure,
-                "Resistencia deseada (kPa)": desired_strength,
-                "Límite líquido (LL)": ll,
-                "Límite plástico (LP)": lp,
-                "Índice de plasticidad (IP)": ip
+                "Resistencia deseada (kPa)": desired_strength if desired_strength > 0 else None
             }
+            
+            # Agregar parámetros opcionales solo si tienen valores
+            if gravel + sand + silt + clay > 0:
+                data.update({
+                    "Grava (%)": gravel,
+                    "Arena (%)": sand,
+                    "Limo (%)": silt,
+                    "Arcilla (%)": clay
+                })
+            
+            if ll > 0:
+                data["Límite líquido (LL)"] = ll
+            if lp > 0:
+                data["Límite plástico (LP)"] = lp
+            if ip is not None:
+                data["Índice de plasticidad (IP)"] = ip
+            
+            if moisture_content > 0:
+                data["Contenido de humedad (%)"] = moisture_content
+            if ph_value > 0:
+                data["pH del suelo"] = ph_value
+            if cbr > 0:
+                data["CBR (%)"] = cbr
+            if swelling > 0:
+                data["Potencial de hinchamiento (%)"] = swelling
             
             # Validar parámetros
             validation_error = validate_soil_parameters(pd.Series(data))
@@ -237,9 +327,14 @@ def generate_technical_prompt(data: pd.Series, additional_info: str, normatives:
     # Búsqueda de referencias académicas específicas
     search_queries = [
         f"estabilización de {data['Tipo de suelo']} nivel freático {data['Nivel freático (m)']}m",
-        f"{data['Tipo de suelo']} presión de carga {data['Presión de carga (kPa)']}kPa",
-        f"métodos de estabilización para {data['Tipo de suelo']} LL{data['Límite líquido (LL)']} IP{data['Índice de plasticidad (IP)']}"
+        f"{data['Tipo de suelo']} presión de carga {data['Presión de carga (kPa)']}kPa"
     ]
+    
+    # Agregar búsquedas específicas según parámetros disponibles
+    if 'Índice de plasticidad (IP)' in data:
+        search_queries.append(f"métodos de estabilización para {data['Tipo de suelo']} IP{data['Índice de plasticidad (IP)']}")
+    elif 'Límite líquido (LL)' in data:
+        search_queries.append(f"métodos de estabilización para {data['Tipo de suelo']} LL{data['Límite líquido (LL)']}")
     
     academic_refs = []
     for query in search_queries:
@@ -271,19 +366,49 @@ def generate_technical_prompt(data: pd.Series, additional_info: str, normatives:
         for name, content in list(articles.items())[:5]
     ) if articles else "\nNo hay artículos cargados"
     
+    # Construir descripción de datos técnicos
+    soil_data_text = f"""
+    ### Datos Técnicos del Suelo:
+    1. Tipo de suelo: {data['Tipo de suelo']}
+    2. Nivel freático: {data['Nivel freático (m)']} m
+    3. Presión de carga: {data['Presión de carga (kPa)']} kPa"""
+    
+    if 'Resistencia deseada (kPa)' in data and data['Resistencia deseada (kPa)'] is not None:
+        soil_data_text += f"\n4. Resistencia deseada: {data['Resistencia deseada (kPa)']} kPa"
+    
+    if all(key in data for key in ['Grava (%)', 'Arena (%)', 'Limo (%)', 'Arcilla (%)']):
+        soil_data_text += f"""
+    5. Granulometría:
+       - Grava: {data['Grava (%)']}%
+       - Arena: {data['Arena (%)']}%
+       - Limo: {data['Limo (%)']}%
+       - Arcilla: {data['Arcilla (%)']}%"""
+    
+    if 'Límite líquido (LL)' in data and 'Límite plástico (LP)' in data:
+        soil_data_text += f"""
+    6. Límites de Atterberg:
+       - Límite líquido (LL): {data['Límite líquido (LL)']}
+       - Límite plástico (LP): {data['Límite plástico (LP)']}"""
+        if 'Índice de plasticidad (IP)' in data:
+            soil_data_text += f"\n       - Índice de plasticidad (IP): {data['Índice de plasticidad (IP)']}"
+    
+    if 'Contenido de humedad (%)' in data:
+        soil_data_text += f"\n7. Contenido de humedad natural: {data['Contenido de humedad (%)']}%"
+    
+    if 'pH del suelo' in data:
+        soil_data_text += f"\n8. pH del suelo: {data['pH del suelo']}"
+    
+    if 'CBR (%)' in data:
+        soil_data_text += f"\n9. CBR: {data['CBR (%)']}%"
+    
+    if 'Potencial de hinchamiento (%)' in data:
+        soil_data_text += f"\n10. Potencial de hinchamiento: {data['Potencial de hinchamiento (%)']}%"
+    
     return f"""
     Eres un ingeniero geotécnico senior con 30 años de experiencia en estabilización de suelos. 
     Realiza un análisis exhaustivo para este caso específico:
 
-    ### Datos Técnicos del Suelo:
-    1. Tipo de suelo: {data['Tipo de suelo']}
-    2. Nivel freático: {data['Nivel freático (m)']} m
-    3. Presión de carga: {data['Presión de carga (kPa)']} kPa
-    4. Resistencia deseada: {data['Resistencia deseada (kPa)']} kPa
-    5. Límites de Atterberg:
-       - Límite líquido (LL): {data['Límite líquido (LL)']}
-       - Límite plástico (LP): {data['Límite plástico (LP)']}
-       - Índice de plasticidad (IP): {data['Índice de plasticidad (IP)']}
+    {soil_data_text}
 
     ### Contexto Técnico:
     {normative_context}
@@ -299,56 +424,57 @@ def generate_technical_prompt(data: pd.Series, additional_info: str, normatives:
     1. **Evaluación de Parámetros:**
        - Verifica la coherencia de los parámetros ingresados
        - Si hay inconsistencias, explica por qué no se puede realizar el análisis
+       - Considera que algunos parámetros pueden no estar disponibles
 
     2. **Clasificación Detallada:**
-       - Clasifica el suelo según USCS y AASHTO
-       - Explica cada parámetro y su implicación
+       - Clasifica el suelo según USCS y AASHTO con los datos disponibles
+       - Explica cada parámetro disponible y su implicación
+       - Indica las limitaciones por falta de datos si es necesario
 
     3. **Problemas Identificados:**
        - Lista los problemas específicos para este suelo
        - Relaciona cada problema con los parámetros ingresados
+       - Señala posibles problemas no identificables por falta de datos
 
     4. **Recomendación de Estabilización:**
        - Realiza un análisis exhaustivo considerando:
          * Métodos físicos (compactación, inclusión de geosintéticos)
          * Métodos químicos (cal, cemento, polímeros)
          * Métodos innovadores (biocementación, nanotecnología)
-       - Selecciona UN único método óptimo basado en:
-         * Compatibilidad exacta con el tipo de suelo
-         * Comportamiento con el nivel freático específico
-         * Capacidad para la presión de carga indicada
-         * Potencial para alcanzar la resistencia deseada
-       - El método recomendado debe ser ESPECÍFICO (no genérico)
-         Ejemplo: "Estabilización con cal al 5% + cemento al 3% para suelos arcillosos con alta plasticidad"
+       - Selecciona UN único método óptimo basado en los datos disponibles
+       - El método recomendado debe ser SUPER ESPECÍFICO (no genérico)
+       - Considera que algunos métodos pueden no ser evaluables por falta de datos
 
     5. **Justificación Técnica Rigurosa:**
        - Explica el mecanismo de acción del método recomendado
        - Detalla materiales requeridos con especificaciones técnicas
        - Describe el proceso constructivo paso a paso
        - Presenta resultados esperados cuantificables
-       - Cita normativas aplicables (ASTM, AASHTO, ISO) con números exactos
+       - Cita normativas aplicables (ASTM, AASHTO, ISO, etc) con números exactos
        - Referencia artículos técnicos que respalden la recomendación
        - Compara con otros métodos descartados y explica por qué no son óptimos
+       - Indica cualquier limitación en el análisis debido a falta de datos
 
     6. **Aplicaciones Recomendadas:**
-       - Proporciona 5 aplicaciones específicas con:
+       - Proporciona aplicaciones específicas basadas en los datos disponibles con:
          * Tipo de proyecto exacto (ej: "Cimentación para edificio de 5 pisos")
          * Configuración recomendada
          * Ejemplos reales documentados (si existen)
          * Justificación técnica para cada aplicación
+       - Indica si las recomendaciones podrían refinarse con datos adicionales
 
     ### Formato de Respuesta Estricto:
     **Evaluación de Parámetros:**
-    [Análisis de coherencia de los datos ingresados]
+    [Análisis de coherencia de los datos ingresados y limitaciones por datos faltantes]
 
     **Clasificación del Suelo:**
-    [Clasificación detallada según sistemas estándar]
+    [Clasificación detallada según sistemas estándar con los datos disponibles]
 
     **Problemas Identificados:**
-    [Lista de problemas específicos para este suelo]
+    [Lista de problemas específicos para este suelo y posibles riesgos no evaluables]
 
     **Recomendación Óptima:**
-    [Método específico recomendado]
+    [Método específico recomendado con consideración de datos faltantes]
 
     **Justificación Técnica:**
     [Explicación detallada con fundamentos técnicos, normativas y referencias]
@@ -360,6 +486,8 @@ def generate_technical_prompt(data: pd.Series, additional_info: str, normatives:
     4. [Proyecto específico 4 con justificación]
     5. [Proyecto específico 5 con justificación]
     """
+
+# [Las funciones restantes (query_ai, parse_response, display_results, generate_pdf_report, main) permanecen exactamente iguales que en el código anterior]
 
 def query_ai(prompt: str) -> str:
     """Consulta a la API de OpenAI con enfoque técnico riguroso"""
@@ -376,11 +504,12 @@ def query_ai(prompt: str) -> str:
                         "Realiza análisis técnicos exhaustivos basados en evidencia científica y normativa. "
                         "Sigue estrictamente estos requisitos:\n"
                         "1. Evalúa primero la coherencia de los parámetros ingresados\n"
-                        "2. Clasifica el suelo con precisión según los estándares\n"
-                        "3. Identifica problemas específicos basados en los datos\n"
+                        "2. Clasifica el suelo con precisión según los estándares con los datos disponibles\n"
+                        "3. Identifica problemas específicos basados en los datos proporcionados\n"
                         "4. Recomienda UN único método ESPECÍFICO después de analizar todas las opciones\n"
                         "5. Justifica con normativas exactas (ASTM, AASHTO, ISO) y artículos científicos indexados\n"
-                        "6. Propone 5 aplicaciones específicas con ejemplos reales cuando sea posible\n"
+                        "6. Propone aplicaciones específicas con ejemplos reales cuando sea posible\n"
+                        "7. Indica claramente cualquier limitación debido a datos faltantes\n"
                         "Sé extremadamente preciso y técnico en todas las explicaciones."
                     )
                 },
@@ -537,17 +666,45 @@ def generate_pdf_report(data: pd.Series, sections: Dict[str, str]) -> Optional[s
         pdf.cell(0, 10, '1. Datos del Suelo', 0, 1)
         pdf.set_font('Arial', '', 11)
         
-        soil_data = [
-            ["Parámetro", "Valor"],
-            ["Tipo de suelo", data["Tipo de suelo"]],
-            ["Nivel freático", f"{data['Nivel freático (m)']} m"],
-            ["Presión de carga", f"{data['Presión de carga (kPa)']} kPa"],
-            ["Resistencia deseada", f"{data['Resistencia deseada (kPa)']} kPa"],
-            ["Límite líquido (LL)", str(data["Límite líquido (LL)"])],
-            ["Límite plástico (LP)", str(data["Límite plástico (LP)"])],
-            ["Índice de plasticidad (IP)", str(data["Índice de plasticidad (IP)"])]
-        ]
+        # Construir lista de datos dinámicamente
+        soil_data = [["Parámetro", "Valor"]]
+        soil_data.append(["Tipo de suelo", data["Tipo de suelo"]])
         
+        # Agregar solo los parámetros que tienen valores
+        if 'Nivel freático (m)' in data:
+            soil_data.append(["Nivel freático", f"{data['Nivel freático (m)']} m"])
+        if 'Presión de carga (kPa)' in data:
+            soil_data.append(["Presión de carga", f"{data['Presión de carga (kPa)']} kPa"])
+        if 'Resistencia deseada (kPa)' in data and data['Resistencia deseada (kPa)'] is not None:
+            soil_data.append(["Resistencia deseada", f"{data['Resistencia deseada (kPa)']} kPa"])
+        
+        # Granulometría
+        if all(key in data for key in ['Grava (%)', 'Arena (%)', 'Limo (%)', 'Arcilla (%)']):
+            soil_data.append(["Granulometría", ""])
+            soil_data.append(["- Grava", f"{data['Grava (%)']}%"])
+            soil_data.append(["- Arena", f"{data['Arena (%)']}%"])
+            soil_data.append(["- Limo", f"{data['Limo (%)']}%"])
+            soil_data.append(["- Arcilla", f"{data['Arcilla (%)']}%"])
+        
+        # Límites de Atterberg
+        if 'Límite líquido (LL)' in data:
+            soil_data.append(["Límite líquido (LL)", str(data["Límite líquido (LL)"])])
+        if 'Límite plástico (LP)' in data:
+            soil_data.append(["Límite plástico (LP)", str(data["Límite plástico (LP)"])])
+        if 'Índice de plasticidad (IP)' in data:
+            soil_data.append(["Índice de plasticidad (IP)", str(data["Índice de plasticidad (IP)"])])
+        
+        # Otras propiedades
+        if 'Contenido de humedad (%)' in data:
+            soil_data.append(["Contenido de humedad", f"{data['Contenido de humedad (%)']}%"])
+        if 'pH del suelo' in data:
+            soil_data.append(["pH del suelo", str(data["pH del suelo"])])
+        if 'CBR (%)' in data:
+            soil_data.append(["CBR", f"{data['CBR (%)']}%"])
+        if 'Potencial de hinchamiento (%)' in data:
+            soil_data.append(["Potencial de hinchamiento", f"{data['Potencial de hinchamiento (%)']}%"])
+        
+        # Imprimir tabla de datos
         col_width = pdf.w / 2.5
         for row in soil_data:
             pdf.cell(col_width, 6, row[0], border=1)
@@ -650,7 +807,7 @@ def main():
         data, additional_info = data_input_interface()
         
         if data is not None:
-            with st.spinner("Realizando análisis técnico exhaustivo..."):
+            with st.spinner("Realizando análisis exhaustivo..."):
                 # Generar prompt técnico
                 prompt = generate_technical_prompt(
                     data.iloc[0], 
@@ -659,19 +816,16 @@ def main():
                     articles
                 )
                 
-                # Mostrar prompt en debug
-                if st.session_state.get("debug", False):
-                    with st.expander("Prompt técnico generado", expanded=False):
-                        st.code(prompt)
-                
                 # Ejecutar consulta a la API
                 analysis = query_ai(prompt)
                 
                 # Mostrar resultados
                 display_results(data.iloc[0], analysis)
                 
-                with st.expander("Respuesta completa de GPT-4 (debug)", expanded=True):
-                    st.markdown(analysis)
+                # Opción para ver detalles completos (debug)
+                if st.checkbox("Mostrar detalles completos de análisis (modo debug)"):
+                    with st.expander("Respuesta completa de GPT-4"):
+                        st.markdown(analysis)
 
                 # Generar PDF
                 sections = parse_response(analysis)
